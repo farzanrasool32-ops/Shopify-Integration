@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@shopify/shopify-api": "^13.1.0",
+    "dotenv": "^17.4.2"
+  }
+}
