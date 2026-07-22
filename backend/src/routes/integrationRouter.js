@@ -10,6 +10,7 @@ const {
   getOrders,
   getStoreStatus,
   disconnectedStore,
+  syncOrders,
 } = require("../controllers/integrationController");
 
 router.post("/connect", auth, connectStore);
@@ -17,6 +18,8 @@ router.post("/connect", auth, connectStore);
 router.get("/callback", callback);
 
 router.get("/orders", auth, getOrders);
+
+router.post("/orders/sync", auth, syncOrders);
 
 router.get("/status", auth, getStoreStatus);
 

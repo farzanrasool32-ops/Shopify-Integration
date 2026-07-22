@@ -1,6 +1,7 @@
 const axios = require("axios");
 const crypto = require("crypto");
 const Store = require("../models/Store");
+const Order = require("../models/Orders");
 
 const connectStore = (req, res) => {
   try {
@@ -86,6 +87,20 @@ const callback = async (req, res) => {
 
 const getOrders = async (req, res) => {
   try {
+    const orders = await Order.find({
+      userId: req.user.id,
+    }).sort({ created_at: -1 });
+
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch orders",
+    });
+  }
+};
+
+const syncOrders = async (req, res) => {
+  try {
     const store = await Store.findOne({
       userId: req.user.id,
     });
@@ -102,24 +117,39 @@ const getOrders = async (req, res) => {
         headers: {
           "X-Shopify-Access-Token": store.accessToken,
         },
-      },
+      }
     );
 
-    const orders = response.data.orders.map((order) => ({
-      id: order.id,
-      name: order.name,
-      created_at: order.created_at,
-      total_price: order.total_price,
-      currency: order.currency,
-      financial_status: order.financial_status,
-      fulfillment_status: order.fulfillment_status,
-      line_items: order.line_items,
-    }));
+    const orders = response.data.orders;
 
-    res.json(orders);
+    for (const order of orders) {
+      await Order.findOneAndUpdate(
+        { orderId: order.id.toString() },
+        {
+          orderId: order.id.toString(),
+          shop: store.shop,
+          userId: req.user.id,
+          name: order.name,
+          created_at: order.created_at,
+          total_price: order.total_price,
+          currency: order.currency,
+          financial_status: order.financial_status,
+          fulfillment_status: order.fulfillment_status,
+          line_items: order.line_items,
+        },
+        {
+          upsert: true,
+          new: true,
+        }
+      );
+    }
+
+    res.json({
+      message: "Orders synced successfully",
+    });
   } catch (error) {
     res.status(500).json({
-      message: "Failed to fetch orders",
+      message: "Failed to sync orders",
     });
   }
 };
@@ -191,12 +221,6 @@ const disconnectedStore = async (req, res) => {
       message: "Store disconnected successfully",
     });
   } catch (error) {
-    console.log("========== ERROR ==========");
-    console.log(error.response?.data || error.message);
-    console.log(error.response?.data);
-    console.log(error.response?.status);
-    console.log(error.message);
-
     res.status(500).json({
       message: error.message,
     });
@@ -207,6 +231,7 @@ module.exports = {
   connectStore,
   callback,
   getOrders,
+  syncOrders,
   getStoreStatus,
   disconnectedStore,
 };
