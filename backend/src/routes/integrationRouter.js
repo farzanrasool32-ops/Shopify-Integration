@@ -8,9 +8,9 @@ const {
   connectStore,
   callback,
   getOrders,
+  syncOrders,
   getStoreStatus,
   disconnectedStore,
-  syncOrders,
 } = require("../controllers/integrationController");
 
 router.post("/connect", auth, connectStore);

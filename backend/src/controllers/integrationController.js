@@ -93,6 +93,8 @@ const getOrders = async (req, res) => {
 
     res.json(orders);
   } catch (error) {
+    console.log(error);
+
     res.status(500).json({
       message: "Failed to fetch orders",
     });
@@ -148,6 +150,8 @@ const syncOrders = async (req, res) => {
       message: "Orders synced successfully",
     });
   } catch (error) {
+    console.log(error);
+    
     res.status(500).json({
       message: "Failed to sync orders",
     });
