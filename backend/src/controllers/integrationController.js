@@ -16,7 +16,7 @@ const connectStore = (req, res) => {
     const state = Buffer.from(
       JSON.stringify({
         userId: req.user.id,
-      }),
+      })
     ).toString("base64url");
 
     const installUrl =
@@ -46,7 +46,9 @@ const callback = async (req, res) => {
       });
     }
 
-    const decoded = JSON.parse(Buffer.from(state, "base64url").toString());
+    const decoded = JSON.parse(
+      Buffer.from(state, "base64url").toString()
+    );
 
     const userId = decoded.userId;
 
@@ -56,12 +58,12 @@ const callback = async (req, res) => {
         client_id: process.env.SHOPIFY_API_KEY,
         client_secret: process.env.SHOPIFY_API_SECRET,
         code,
-      },
+      }
     );
 
     const accessToken = response.data.access_token;
 
-    const store = await Store.findOneAndUpdate(
+    await Store.findOneAndUpdate(
       { shop },
       {
         shop,
@@ -72,8 +74,77 @@ const callback = async (req, res) => {
       {
         upsert: true,
         returnDocument: "after",
-      },
+      }
     );
+
+    const existingWebhooks = await axios.get(
+      `https://${shop}/admin/api/2025-01/webhooks.json`,
+      {
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+        },
+      }
+    );
+
+    const webhooks = existingWebhooks.data.webhooks;
+
+    const ordersWebhookExists = webhooks.some(
+      (webhook) =>
+        webhook.topic === "orders/create" &&
+        webhook.address ===
+          `${process.env.NGROK_URL}/api/integration/webhooks/orders/create`
+    );
+
+    const uninstallWebhookExists = webhooks.some(
+      (webhook) =>
+        webhook.topic === "app/uninstalled" &&
+        webhook.address ===
+          `${process.env.NGROK_URL}/api/integration/webhooks/app/uninstalled`
+    );
+
+    if (!ordersWebhookExists) {
+      await axios.post(
+        `https://${shop}/admin/api/2025-01/webhooks.json`,
+        {
+          webhook: {
+            topic: "orders/create",
+            address: `${process.env.NGROK_URL}/api/integration/webhooks/orders/create`,
+            format: "json",
+          },
+        },
+        {
+          headers: {
+            "X-Shopify-Access-Token": accessToken,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("Orders Webhook Registered");
+    }
+
+    if (!uninstallWebhookExists) {
+      await axios.post(
+        `https://${shop}/admin/api/2025-01/webhooks.json`,
+        {
+          webhook: {
+            topic: "app/uninstalled",
+            address: `${process.env.NGROK_URL}/api/integration/webhooks/app/uninstalled`,
+            format: "json",
+          },
+        },
+        {
+          headers: {
+            "X-Shopify-Access-Token": accessToken,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("App Uninstall Webhook Registered");
+    }
+
+    console.log("All Webhooks Registered");
 
     res.redirect("http://localhost:5173/dashboard");
   } catch (error) {
@@ -89,11 +160,13 @@ const getOrders = async (req, res) => {
   try {
     const orders = await Order.find({
       userId: req.user.id,
-    }).sort({ created_at: -1 });
+    }).sort({
+      created_at: -1,
+    });
 
     res.json(orders);
   } catch (error) {
-    console.log(error);
+    console.error(error);
 
     res.status(500).json({
       message: "Failed to fetch orders",
@@ -119,14 +192,16 @@ const syncOrders = async (req, res) => {
         headers: {
           "X-Shopify-Access-Token": store.accessToken,
         },
-      }
+      },
     );
 
     const orders = response.data.orders;
 
     for (const order of orders) {
       await Order.findOneAndUpdate(
-        { orderId: order.id.toString() },
+        { 
+          orderId: order.id.toString() 
+        },
         {
           orderId: order.id.toString(),
           shop: store.shop,
@@ -141,8 +216,8 @@ const syncOrders = async (req, res) => {
         },
         {
           upsert: true,
-          new: true,
-        }
+          returnDocument: "after",
+        },
       );
     }
 
@@ -151,7 +226,7 @@ const syncOrders = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    
+
     res.status(500).json({
       message: "Failed to sync orders",
     });
@@ -175,15 +250,17 @@ const getStoreStatus = async (req, res) => {
       shop: store.shop,
     });
   } catch (error) {
+    console.log(error);
+
     res.status(500).json({
-      message: error.message,
+      message: "Failed to fetch store status"
     });
   }
 };
 
 const disconnectedStore = async (req, res) => {
   try {
-    const store = await Store.findOneAndDelete({
+    const store = await Store.findOne({
       userId: req.user.id,
     });
 
@@ -194,25 +271,25 @@ const disconnectedStore = async (req, res) => {
     }
 
     const response = await axios.post(
-      `https://${store.shop}/admin/api/2025-01/graphql.json`,
-      {
-        query: `
-          mutation {
-            appUninstall {
-              userErrors {
-                field
-                message
-              }
-            }
+  `https://${store.shop}/admin/api/2025-01/graphql.json`,
+  {
+    query: `
+      mutation {
+        appUninstall {
+          userErrors {
+            field
+            message
           }
-        `,
-      },
+        }
+      }
+    `,
+  },
       {
         headers: {
           "X-Shopify-Access-Token": store.accessToken,
           "Content-Type": "application/json",
         },
-      },
+      }
     );
 
     console.log(JSON.stringify(response.data, null, 2));
@@ -225,9 +302,116 @@ const disconnectedStore = async (req, res) => {
       message: "Store disconnected successfully",
     });
   } catch (error) {
+    console.error(error.response?.data || error.message);
+
     res.status(500).json({
-      message: error.message,
+      message: "Failed to disconnect store",
     });
+  }
+};
+
+const ordersCreateWebhook = async (req, res) => {
+  try {
+    console.log("========== WEBHOOK RECEIVED ==========");
+
+    const hmac = req.headers["x-shopify-hmac-sha256"];
+
+    const rawBody = req.body;
+
+    const generatedHmac = crypto
+      .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
+      .update(rawBody)
+      .digest("base64");
+
+    if (generatedHmac !== hmac) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const order = JSON.parse(rawBody.toString());
+
+    const shop = req.headers["x-shopify-shop-domain"];
+
+    const store = await Store.findOne({
+      shop,
+    });
+
+    if (!store) {
+      return res.status(404).send("Store not found");
+    }
+
+    await Order.findOneAndUpdate(
+      {
+        orderId: order.id.toString(),
+      },
+      {
+        orderId: order.id.toString(),
+        shop,
+        userId: store.userId,
+        name: order.name,
+        created_at: order.created_at,
+        total_price: order.total_price,
+        currency: order.currency,
+        financial_status: order.financial_status,
+        fulfillment_status: order.fulfillment_status,
+        line_items: order.line_items,
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+      }
+    );
+
+    console.log("Order Saved");
+
+    res.status(200).send("Webhook received");
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).send("Webhook Error");
+  }
+};
+
+const appUninstalledWebhook = async (req, res) => {
+  try {
+    console.log("========== APP UNINSTALLED ==========");
+
+    // HMAC Verify
+    const hmac = req.headers["x-shopify-hmac-sha256"];
+    const rawBody = req.body;
+
+    const generatedHmac = crypto
+      .createHmac("sha256", process.env.SHOPIFY_API_SECRET)
+      .update(rawBody)
+      .digest("base64");
+
+    if (generatedHmac !== hmac) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const shop = req.headers["x-shopify-shop-domain"];
+
+    // Store ko disconnected mark karo
+    await Store.findOneAndUpdate(
+      { shop },
+      {
+        connected: false,
+        accessToken: null,
+      },
+      {
+        returnDocument: "after",
+      }
+    );
+
+    console.log("Store Disconnected");
+
+    // Shopify ko hamesha success return karo
+    return res.sendStatus(200);
+
+  } catch (error) {
+    console.error(error);
+
+    // Agar error bhi aa jaye to Shopify retries avoid karne ke liye 200 bhej do
+    return res.sendStatus(200);
   }
 };
 
@@ -238,4 +422,6 @@ module.exports = {
   syncOrders,
   getStoreStatus,
   disconnectedStore,
+  ordersCreateWebhook,
+  appUninstalledWebhook,
 };

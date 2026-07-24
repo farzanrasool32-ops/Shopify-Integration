@@ -41,17 +41,18 @@ const Orders = () => {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-white">Shopify Orders</h1>
 
-          <div className="flex gap-3 ites-center">
+          <div className="flex gap-3 items-center">
             <button
               onClick={syncOrders}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 text-white px-4 py-2 rounded-lg"
             >
-              Sync Orders
+              {loading ? "Syncing..." : "Sync Orders"}
             </button>
           </div>
 
           <span className="bg-[#95BF47] text-black px-4 py-2 rounded-lg font-semibold">
-            Total Orders : {orders.length}
+            Total Orders: {orders.length}
           </span>
         </div>
 

@@ -26,6 +26,9 @@ const Integration = () => {
   }, []);
 
   const connectStore = async () => {
+    if (!shop.trim()) {
+      return alert("Please enter your Shopify store domain.");
+    }
     try {
       const response = await API.post("/integration/connect", {
         shop,
@@ -54,7 +57,6 @@ const Integration = () => {
   return (
     <div className="flex justify-center items-center min-h-[75vh]">
       <div className="w-full max-w-2xl bg-[#1E293B] border border-gray-700 rounded-2xl shadow-xl p-10">
-
         <h1 className="text-3xl font-bold text-white text-center">
           Shopify Store Integration
         </h1>
@@ -65,14 +67,11 @@ const Integration = () => {
 
         {connected ? (
           <div className="text-center">
-
             <h2 className="text-2xl font-bold text-green-400">
-               Store Connected
+              Store Connected
             </h2>
 
-            <p className="text-gray-300 mt-5">
-              {storeName}
-            </p>
+            <p className="text-gray-300 mt-5">{storeName}</p>
 
             <button
               onClick={disconnectStore}
@@ -80,7 +79,6 @@ const Integration = () => {
             >
               Disconnect Store
             </button>
-
           </div>
         ) : (
           <>
@@ -97,8 +95,9 @@ const Integration = () => {
             />
 
             <button
+              disabled={!shop.trim()}
               onClick={connectStore}
-              className="w-full mt-6 bg-[#95BF47] hover:bg-[#7DA83D] text-black font-semibold py-3 rounded-lg transition"
+              className="w-full mt-6 bg-[#95BF47] hover:bg-[#7DA83D] disabled:bg-gray-500 text-black font-semibold py-3 rounded-lg transition"
             >
               Connect Store
             </button>

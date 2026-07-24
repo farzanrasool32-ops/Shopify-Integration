@@ -11,6 +11,8 @@ const {
   syncOrders,
   getStoreStatus,
   disconnectedStore,
+  ordersCreateWebhook,
+  appUninstalledWebhook,
 } = require("../controllers/integrationController");
 
 router.post("/connect", auth, connectStore);
@@ -24,5 +26,9 @@ router.post("/orders/sync", auth, syncOrders);
 router.get("/status", auth, getStoreStatus);
 
 router.post("/disconnect", auth, disconnectedStore);
+
+router.post("/webhooks/orders/create", ordersCreateWebhook);
+
+router.post("/webhooks/app/uninstalled", appUninstalledWebhook);
 
 module.exports = router;
